@@ -3,8 +3,8 @@ use std::collections::HashSet;
 use anyhow::{anyhow, Result};
 use once_cell::sync::Lazy;
 use regex::{Captures, Regex, RegexBuilder};
-use unicode_normalization::UnicodeNormalization;
 use serde::Serialize;
+use unicode_normalization::UnicodeNormalization;
 
 use crate::config::ScrubberConfig;
 use crate::Category;
@@ -20,34 +20,231 @@ const PERSON_TOKEN: &str = "[PERSON]";
 const FACILITY_TOKEN: &str = "[FACILITY]";
 const ZIP_TOKEN: &str = "[ZIP]";
 const COORD_TOKEN: &str = "[COORD]";
+const URL_TOKEN: &str = "[URL]";
+const INSURANCE_TOKEN: &str = "[INSURANCE]";
+const LICENSE_TOKEN: &str = "[LICENSE]";
+const VEHICLE_TOKEN: &str = "[VEHICLE]";
+const DEVICE_TOKEN: &str = "[DEVICE]";
+const IP_TOKEN: &str = "[IP]";
 
 const DEFAULT_NAMES: &[&str] = &[
-    "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis",
-    "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson",
-    "Thomas", "Taylor", "Moore", "Jackson", "Martin", "Lee", "Perez", "Thompson",
-    "White", "Harris", "Sanchez", "Clark", "Ramirez", "Lewis", "Robinson", "Walker",
-    "Young", "Allen", "King", "Wright", "Scott", "Torres", "Nguyen", "Hill", "Flores",
-    "Green", "Adams", "Nelson", "Baker", "Hall", "Rivera", "Campbell", "Mitchell",
-    "Carter", "Roberts", "Gomez", "Phillips", "Turner", "Parker", "Evans", "Edwards",
-    "Collins", "Stewart", "Sanchez", "Morris", "Murphy", "Cook", "Rogers", "Morgan",
-    "Patel", "Singh", "Khan", "Ali", "Mohammed", "Mohammad", "Abdullah", "Hussain", "Kim", "Park",
-    "Chen", "Wang", "Zhang", "Lin", "Tran", "Ng", "Chaudhry", "Ahmad", "Iqbal", "Rahman",
+    "Smith",
+    "Johnson",
+    "Williams",
+    "Brown",
+    "Jones",
+    "Garcia",
+    "Miller",
+    "Davis",
+    "Rodriguez",
+    "Martinez",
+    "Hernandez",
+    "Lopez",
+    "Gonzalez",
+    "Wilson",
+    "Anderson",
+    "Thomas",
+    "Taylor",
+    "Moore",
+    "Jackson",
+    "Martin",
+    "Lee",
+    "Perez",
+    "Thompson",
+    "White",
+    "Harris",
+    "Sanchez",
+    "Clark",
+    "Ramirez",
+    "Lewis",
+    "Robinson",
+    "Walker",
+    "Young",
+    "Allen",
+    "King",
+    "Wright",
+    "Scott",
+    "Torres",
+    "Nguyen",
+    "Hill",
+    "Flores",
+    "Green",
+    "Adams",
+    "Nelson",
+    "Baker",
+    "Hall",
+    "Rivera",
+    "Campbell",
+    "Mitchell",
+    "Carter",
+    "Roberts",
+    "Gomez",
+    "Phillips",
+    "Turner",
+    "Parker",
+    "Evans",
+    "Edwards",
+    "Collins",
+    "Stewart",
+    "Sanchez",
+    "Morris",
+    "Murphy",
+    "Cook",
+    "Rogers",
+    "Morgan",
+    "Patel",
+    "Singh",
+    "Khan",
+    "Ali",
+    "Mohammed",
+    "Mohammad",
+    "Abdullah",
+    "Hussain",
+    "Kim",
+    "Park",
+    "Chen",
+    "Wang",
+    "Zhang",
+    "Lin",
+    "Tran",
+    "Ng",
+    "Chaudhry",
+    "Ahmad",
+    "Iqbal",
+    "Rahman",
 ];
 
 const COMMON_FIRST_NAMES: &[&str] = &[
-    "James", "Mary", "Robert", "Patricia", "John", "Jennifer", "Michael", "Linda", "William", "Elizabeth",
-    "David", "Barbara", "Richard", "Susan", "Joseph", "Jessica", "Thomas", "Sarah", "Charles", "Karen",
-    "Christopher", "Nancy", "Daniel", "Lisa", "Matthew", "Betty", "Anthony", "Margaret", "Mark", "Sandra",
-    "Donald", "Ashley", "Steven", "Kimberly", "Paul", "Emily", "Andrew", "Donna", "Joshua", "Michelle",
-    "Kenneth", "Dorothy", "Kevin", "Carol", "Brian", "Amanda", "George", "Melissa", "Timothy", "Deborah",
-    "Ronald", "Stephanie", "Edward", "Rebecca", "Jason", "Sharon", "Jeffrey", "Laura", "Ryan", "Cynthia",
-    "Jacob", "Kathleen", "Gary", "Amy", "Nicholas", "Shirley", "Eric", "Angela", "Jonathan", "Helen",
-    "Stephen", "Anna", "Larry", "Brenda", "Justin", "Pamela", "Scott", "Nicole", "Brandon", "Samantha",
-    "Frank", "Katherine", "Benjamin", "Emma", "Gregory", "Ruth", "Samuel", "Christine", "Patrick", "Catherine",
-    "Alexander", "Debra", "Jack", "Rachel", "Dennis", "Carolyn", "Jerry", "Janet", "Tyler", "Maria",
-    "Mohammed", "Muhammad", "Ahmed", "Ahmad", "Omar", "Hassan", "Hussein", "Abdullah", "Fatima", "Aisha",
-    "Amelia", "Priya", "Anjali", "Sofia", "Noor", "Amina", "Li", "Wei", "Min", "Hao",
-    "Jin", "Sang", "Hye", "Yuki", "Mei", "Ravi", "Imran", "Farah", "Leila", "Zara",
+    "James",
+    "Mary",
+    "Robert",
+    "Patricia",
+    "John",
+    "Jennifer",
+    "Michael",
+    "Linda",
+    "William",
+    "Elizabeth",
+    "David",
+    "Barbara",
+    "Richard",
+    "Susan",
+    "Joseph",
+    "Jessica",
+    "Thomas",
+    "Sarah",
+    "Charles",
+    "Karen",
+    "Christopher",
+    "Nancy",
+    "Daniel",
+    "Lisa",
+    "Matthew",
+    "Betty",
+    "Anthony",
+    "Margaret",
+    "Mark",
+    "Sandra",
+    "Donald",
+    "Ashley",
+    "Steven",
+    "Kimberly",
+    "Paul",
+    "Emily",
+    "Andrew",
+    "Donna",
+    "Joshua",
+    "Michelle",
+    "Kenneth",
+    "Dorothy",
+    "Kevin",
+    "Carol",
+    "Brian",
+    "Amanda",
+    "George",
+    "Melissa",
+    "Timothy",
+    "Deborah",
+    "Ronald",
+    "Stephanie",
+    "Edward",
+    "Rebecca",
+    "Jason",
+    "Sharon",
+    "Jeffrey",
+    "Laura",
+    "Ryan",
+    "Cynthia",
+    "Jacob",
+    "Kathleen",
+    "Gary",
+    "Amy",
+    "Nicholas",
+    "Shirley",
+    "Eric",
+    "Angela",
+    "Jonathan",
+    "Helen",
+    "Stephen",
+    "Anna",
+    "Larry",
+    "Brenda",
+    "Justin",
+    "Pamela",
+    "Scott",
+    "Nicole",
+    "Brandon",
+    "Samantha",
+    "Frank",
+    "Katherine",
+    "Benjamin",
+    "Emma",
+    "Gregory",
+    "Ruth",
+    "Samuel",
+    "Christine",
+    "Patrick",
+    "Catherine",
+    "Alexander",
+    "Debra",
+    "Jack",
+    "Rachel",
+    "Dennis",
+    "Carolyn",
+    "Jerry",
+    "Janet",
+    "Tyler",
+    "Maria",
+    "Mohammed",
+    "Muhammad",
+    "Ahmed",
+    "Ahmad",
+    "Omar",
+    "Hassan",
+    "Hussein",
+    "Abdullah",
+    "Fatima",
+    "Aisha",
+    "Amelia",
+    "Priya",
+    "Anjali",
+    "Sofia",
+    "Noor",
+    "Amina",
+    "Li",
+    "Wei",
+    "Min",
+    "Hao",
+    "Jin",
+    "Sang",
+    "Hye",
+    "Yuki",
+    "Mei",
+    "Ravi",
+    "Imran",
+    "Farah",
+    "Leila",
+    "Zara",
 ];
 const DEFAULT_FACILITY_TERMS: &[&str] = &[
     "General Hospital",
@@ -63,15 +260,33 @@ const DEFAULT_FACILITY_TERMS: &[&str] = &[
     "Internal Medicine",
 ];
 
-
 const NAME_STOPLIST: &[&str] = &[
-    "CKD", "ESBL", "ICU", "BKA", "IDDM", "MRSA", "ASTHMA", "DIALYSIS", "MEROPENEM", "SEPSIS",
-    "HYPERTENSION", "DIABETES", "E COLI", "E. COLI", "HGB", "HCT", "POC", "IV",
+    "CKD",
+    "ESBL",
+    "ICU",
+    "BKA",
+    "IDDM",
+    "MRSA",
+    "ASTHMA",
+    "DIALYSIS",
+    "MEROPENEM",
+    "SEPSIS",
+    "HYPERTENSION",
+    "DIABETES",
+    "E COLI",
+    "E. COLI",
+    "HGB",
+    "HCT",
+    "POC",
+    "IV",
 ];
 
-static MULTISPACE_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"[^\S\r\n]+").expect("multispace regex"));
-static SPACE_AROUND_PUNCT_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"\s+([.,;:!?])").expect("punct regex"));
-static DUP_PUNCT_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"([.,;:!?]){2,}").expect("dup punct regex"));
+static MULTISPACE_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"[^\S\r\n]+").expect("multispace regex"));
+static SPACE_AROUND_PUNCT_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"\s+([.,;:!?])").expect("punct regex"));
+static DUP_PUNCT_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"([.,;:!?]){2,}").expect("dup punct regex"));
 
 #[derive(Debug, Default, Serialize)]
 pub struct ScrubStats {
@@ -86,6 +301,12 @@ pub struct ScrubStats {
     pub facilities: usize,
     pub addresses: usize,
     pub coordinates: usize,
+    pub urls: usize,
+    pub insurance_ids: usize,
+    pub licenses: usize,
+    pub vehicles: usize,
+    pub devices: usize,
+    pub ip_addresses: usize,
 }
 
 impl ScrubStats {
@@ -101,6 +322,12 @@ impl ScrubStats {
             + self.facilities
             + self.addresses
             + self.coordinates
+            + self.urls
+            + self.insurance_ids
+            + self.licenses
+            + self.vehicles
+            + self.devices
+            + self.ip_addresses
     }
 }
 
@@ -114,17 +341,26 @@ pub struct Scrubber {
     facility_regex: Regex,
     custom_facility_regex: Option<Regex>,
     address_regex: Regex,
+    location_regex: Regex,
     coordinate_regex: Regex,
+    url_regex: Regex,
+    obfuscated_email_regex: Regex,
     name_dictionary_regex: Option<Regex>,
     titled_name_regex: Regex,
     first_last_regex: Regex,
     capital_sequence_regex: Regex,
     date_regex: Regex,
     relative_date_regex: Regex,
+    insurance_regex: Regex,
+    license_regex: Regex,
+    vehicle_regex: Regex,
+    device_regex: Regex,
+    ip_regex: Regex,
+    safe_harbor: bool,
 }
 
 impl Scrubber {
-    pub fn new(config: ScrubberConfig) -> Result<Self> {
+    pub fn new(config: ScrubberConfig, safe_harbor: bool) -> Result<Self> {
         let mrn_min = config.mrn_min_length.unwrap_or(6);
         let mrn_max = config.mrn_max_length.unwrap_or(10);
         if mrn_min == 0 || mrn_max == 0 || mrn_min > mrn_max {
@@ -146,7 +382,9 @@ impl Scrubber {
 
         let ssn_regex = Regex::new(r"\b(?:\d{3}-\d{2}-\d{4}|xxx-xx-\d{4})\b")?;
         let mrn_regex = Regex::new(&format!(r"\b\d{{{},{}}}\b", mrn_min, mrn_max))?;
-        let mrn_label_regex = Regex::new(r"(?i)\b(?:MRN|Acct|Account|Patient\s*ID|Chart)\s*[:#]?\s*-?\s*[A-Za-z0-9-]{4,}\b")?;
+        let mrn_label_regex = Regex::new(
+            r"(?i)\b(?:MRN|Acct|Account|Patient\s*ID|Chart)\s*[:#]?\s*-?\s*[A-Za-z0-9-]{4,}\b",
+        )?;
         let zip_regex = Regex::new(r"\b\d{5}(?:-\d{4})?\b")?;
 
         let facility_regex = Regex::new(
@@ -159,16 +397,61 @@ impl Scrubber {
 
         let address_regex = Regex::new(
             r"(?xi)
-            \b\d{1,6}\s+(?:[A-Z][\w\.-]*\s+){1,5}
-            (?:St\.|Street|Ave(?:nue)?|Rd\.?|Road|Dr\.?|Drive|Blvd\.?|Boulevard|Ln\.?|Lane|Ct\.?|Court|Pl\.?|Place|Ter(?:race)?|Way)\b
-            (?:\s*(?:Apt|Unit|\#)\s*\w+)?",
+            \b\d{1,6}\s+(?:[NSEW]\.?\s+)?(?:\d+(?:st|nd|rd|th)|[A-Z][\w\.-]*)
+            (?:\s+(?:\d+(?:st|nd|rd|th)|[A-Z][\w\.-]*)){0,3}
+            \s+(?:Street|St\.?|Avenue|Ave\.?|Road|Rd\.?|Drive|Dr\.?|Boulevard|Blvd\.?|Lane|Ln\.?|Court|Ct\.?|Place|Pl\.?|Terrace|Ter\.?|Way)
+            (?:\s*,?\s*(?:Apt|Apartment|Unit|Suite|Ste\.?|\#)\s*[-A-Z0-9]+)?",
+        )?;
+
+        let location_regex = Regex::new(
+            r"(?xi)
+            \b(?:Suite|Ste\.?|Room|Rm\.?|Unit|Apt|Apartment|OR|Bed|Bay)\s*-?\s*(?:\#?\d[0-9A-Z-]{0,5})
+        ",
         )?;
 
         let coordinate_regex = Regex::new(
             r"(?xi)
-            \b-?\d{1,3}\.\d+\s*(?:°|º)?\s*[NS]\b[,\s]*-?\d{1,3}\.\d+\s*(?:°|º)?\s*[EW]\b
+            \b-?\d{1,3}\.\d+\s*(?:°|º)?\s*[NS]\b[,;\s]*-?\d{1,3}\.\d+\s*(?:°|º)?\s*[EW]\b
         ",
         )?;
+
+        let url_regex = Regex::new(
+            r"(?xi)
+            \b(?:https?://|www\.)\S+
+        ",
+        )?;
+
+        let obfuscated_email_regex = Regex::new(
+            r"(?xi)
+            \b[\w.+-]+(?:\s+at\s+|\s*@\s*)[\w.-]+(?:\s+dot\s+[\w.-]+)+\b
+        ",
+        )?;
+
+        let insurance_regex = Regex::new(
+            r"(?xi)
+            \b(?:Member|Policy|Plan|Subscriber|Insurance)\s*(?:ID|No\.?|Number|\#)?\s*[:\#-]?\s*[A-Z0-9]{3,}(?:[-\s][A-Z0-9]{2,}){0,3}\b
+        ",
+        )?;
+
+        let license_regex = Regex::new(
+            r"(?xi)
+            \b(?:Driver'?s\s+License|DL|License|Lic|Passport|State\s+ID|ID\s+Number)\s*(?:No\.?|Number|ID|\#)?\s*[:\#-]?\s*[A-Z0-9]{3,}(?:[-\s][A-Z0-9]{2,}){0,3}\b
+        ",
+        )?;
+
+        let vehicle_regex = Regex::new(
+            r"(?xi)
+            \b(?:VIN|Vehicle\s+Identification\s+Number|Plate|Tag)\s*(?:No\.?|Number|ID|\#)?\s*[:\#-]?\s*[A-HJ-NPR-Z0-9]{5,17}\b
+        ",
+        )?;
+
+        let device_regex = Regex::new(
+            r"(?xi)
+            \b(?:Device|Implant|Pump|Pacemaker|Generator|Catheter|Serial|S/N)\s*(?:ID|No\.?|Number|\#)?\s*[:\#-]?\s*[A-Z0-9]{3,}(?:[-/][A-Z0-9]{2,}){0,3}\b
+        ",
+        )?;
+
+        let ip_regex = Regex::new(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")?;
 
         let facility_terms = build_dictionary(DEFAULT_FACILITY_TERMS, &config.keywords);
         let custom_facility_regex = build_dictionary_regex(&facility_terms)?;
@@ -208,13 +491,22 @@ impl Scrubber {
             facility_regex,
             custom_facility_regex,
             address_regex,
+            location_regex,
             coordinate_regex,
+            url_regex,
+            obfuscated_email_regex,
             name_dictionary_regex,
             titled_name_regex,
             first_last_regex,
             capital_sequence_regex,
             date_regex,
             relative_date_regex,
+            insurance_regex,
+            license_regex,
+            vehicle_regex,
+            device_regex,
+            ip_regex,
+            safe_harbor,
         })
     }
 
@@ -224,9 +516,17 @@ impl Scrubber {
         let mut stats = ScrubStats::default();
 
         if !skip.contains(&Category::Email) {
-            let (next, count) = replace_all(&self.email_regex, &output, EMAIL_TOKEN);
+            let (next, count_a) = replace_all(&self.email_regex, &output, EMAIL_TOKEN);
             output = next;
-            stats.emails = count;
+            let (next, count_b) = replace_all(&self.obfuscated_email_regex, &output, EMAIL_TOKEN);
+            output = next;
+            stats.emails = count_a + count_b;
+        }
+
+        if self.safe_harbor && !skip.contains(&Category::Url) {
+            let (next, count) = replace_all(&self.url_regex, &output, URL_TOKEN);
+            output = next;
+            stats.urls = count;
         }
 
         if !skip.contains(&Category::Phone) {
@@ -268,15 +568,47 @@ impl Scrubber {
         }
 
         if !skip.contains(&Category::Address) {
-            let (next, count) = replace_all(&self.address_regex, &output, ADDRESS_TOKEN);
+            let (next, count_a) = replace_all(&self.address_regex, &output, ADDRESS_TOKEN);
             output = next;
-            stats.addresses = count;
+            let (next, count_b) = replace_all(&self.location_regex, &output, ADDRESS_TOKEN);
+            output = next;
+            stats.addresses = count_a + count_b;
         }
 
         if !skip.contains(&Category::Coordinate) {
             let (next, count) = replace_all(&self.coordinate_regex, &output, COORD_TOKEN);
             output = next;
             stats.coordinates = count;
+        }
+
+        if self.safe_harbor && !skip.contains(&Category::Insurance) {
+            let (next, count) = replace_all(&self.insurance_regex, &output, INSURANCE_TOKEN);
+            output = next;
+            stats.insurance_ids = count;
+        }
+
+        if self.safe_harbor && !skip.contains(&Category::License) {
+            let (next, count) = replace_all(&self.license_regex, &output, LICENSE_TOKEN);
+            output = next;
+            stats.licenses = count;
+        }
+
+        if self.safe_harbor && !skip.contains(&Category::Vehicle) {
+            let (next, count) = replace_all(&self.vehicle_regex, &output, VEHICLE_TOKEN);
+            output = next;
+            stats.vehicles = count;
+        }
+
+        if self.safe_harbor && !skip.contains(&Category::Device) {
+            let (next, count) = replace_all(&self.device_regex, &output, DEVICE_TOKEN);
+            output = next;
+            stats.devices = count;
+        }
+
+        if self.safe_harbor && !skip.contains(&Category::Ip) {
+            let (next, count) = replace_all(&self.ip_regex, &output, IP_TOKEN);
+            output = next;
+            stats.ip_addresses = count;
         }
 
         if !skip.contains(&Category::Person) {
@@ -329,10 +661,17 @@ fn replace_all(regex: &Regex, input: &str, replacement: &str) -> (String, usize)
 }
 
 fn replace_names(regex: &Regex, input: &str, replacement: &str) -> (String, usize) {
-    replace_all_filtered(regex, input, replacement, |candidate| !is_name_stopword(candidate))
+    replace_all_filtered(regex, input, replacement, |candidate| {
+        !is_name_stopword(candidate)
+    })
 }
 
-fn replace_all_filtered<F>(regex: &Regex, input: &str, replacement: &str, mut should_replace: F) -> (String, usize)
+fn replace_all_filtered<F>(
+    regex: &Regex,
+    input: &str,
+    replacement: &str,
+    mut should_replace: F,
+) -> (String, usize)
 where
     F: FnMut(&str) -> bool,
 {
@@ -385,7 +724,10 @@ fn build_dictionary_regex(entries: &[String]) -> Result<Option<Regex>> {
 }
 
 fn build_first_last_regex() -> Result<Regex> {
-    let firsts: Vec<String> = COMMON_FIRST_NAMES.iter().map(|name| regex::escape(name)).collect();
+    let firsts: Vec<String> = COMMON_FIRST_NAMES
+        .iter()
+        .map(|name| regex::escape(name))
+        .collect();
     let pattern = format!(
         r"(?xi)\b(?:{})\s+[A-Z][\p{{L}}\u{{2019}}'-]+(?:\s+[A-Z][\p{{L}}\u{{2019}}'-]+)?",
         firsts.join("|")
@@ -428,7 +770,10 @@ fn normalize_input(input: &str) -> String {
         .replace(['\u{2018}', '\u{2019}', '\u{201B}', '\u{2032}'], "'")
         .replace(['\u{201C}', '\u{201D}', '\u{2033}'], "\"")
         .replace(['\u{2013}', '\u{2014}', '\u{2212}'], "-")
-        .replace(['\u{2022}', '\u{00B7}', '\u{2027}', '\u{2043}', '\u{30FB}'], " ");
+        .replace(
+            ['\u{2022}', '\u{00B7}', '\u{2027}', '\u{2043}', '\u{30FB}'],
+            " ",
+        );
 
     normalized = MULTISPACE_RE.replace_all(&normalized, " ").into_owned();
     normalized
@@ -437,7 +782,9 @@ fn normalize_input(input: &str) -> String {
 fn tidy_punctuation(input: &str) -> String {
     let mut text = SPACE_AROUND_PUNCT_RE.replace_all(input, "$1").into_owned();
     text = DUP_PUNCT_RE
-        .replace_all(&text, |caps: &Captures| caps.get(1).map(|m| m.as_str()).unwrap_or("").to_string())
+        .replace_all(&text, |caps: &Captures| {
+            caps.get(1).map(|m| m.as_str()).unwrap_or("").to_string()
+        })
         .into_owned();
     text.trim().to_string()
 }
@@ -450,7 +797,7 @@ mod tests {
 
     #[test]
     fn redacts_email_and_phone() {
-        let scrubber = Scrubber::new(ScrubberConfig::default()).expect("scrubber");
+        let scrubber = Scrubber::new(ScrubberConfig::default(), false).expect("scrubber");
         let input = "Reach me at jane.doe@example.com or (555) 867-5309.";
         let (output, stats) = scrubber.scrub(input, &HashSet::new());
         assert!(output.contains(EMAIL_TOKEN));
@@ -461,7 +808,7 @@ mod tests {
 
     #[test]
     fn honors_skip_categories() {
-        let scrubber = Scrubber::new(ScrubberConfig::default()).expect("scrubber");
+        let scrubber = Scrubber::new(ScrubberConfig::default(), false).expect("scrubber");
         let input = "Call 555-111-2222 and email foo@bar.com.";
         let mut skip = HashSet::new();
         skip.insert(Category::Phone);
@@ -473,12 +820,39 @@ mod tests {
     }
 
     #[test]
+    fn redacts_directional_address_and_unit() {
+        let scrubber = Scrubber::new(ScrubberConfig::default(), false).expect("scrubber");
+        let input = "Lives at 1200 W. 31st St., Apt #4B in Chicago.";
+        let (output, stats) = scrubber.scrub(input, &HashSet::new());
+        assert!(output.contains(ADDRESS_TOKEN));
+        assert!(stats.addresses >= 1);
+    }
+
+    #[test]
+    fn redacts_obfuscated_email() {
+        let scrubber = Scrubber::new(ScrubberConfig::default(), false).expect("scrubber");
+        let input = "Contact jrsmith at midstate dot edu for questions.";
+        let (output, stats) = scrubber.scrub(input, &HashSet::new());
+        assert!(output.contains(EMAIL_TOKEN));
+        assert_eq!(stats.emails, 1);
+    }
+
+    #[test]
+    fn redacts_url() {
+        let scrubber = Scrubber::new(ScrubberConfig::default(), true).expect("scrubber");
+        let input = "See http://midstate.example/pt/12345 for records.";
+        let (output, stats) = scrubber.scrub(input, &HashSet::new());
+        assert!(output.contains(URL_TOKEN));
+        assert_eq!(stats.urls, 1);
+    }
+
+    #[test]
     fn redacts_custom_names() {
         let config = ScrubberConfig {
             names: vec!["Zelda Fitzgerald".to_string()],
             ..Default::default()
         };
-        let scrubber = Scrubber::new(config).expect("scrubber");
+        let scrubber = Scrubber::new(config, false).expect("scrubber");
         let input = "Discussed plan with Zelda Fitzgerald today.";
         let (output, stats) = scrubber.scrub(input, &HashSet::new());
         assert!(output.contains(PERSON_TOKEN));
@@ -487,7 +861,7 @@ mod tests {
 
     #[test]
     fn redacts_common_first_last_pair() {
-        let scrubber = Scrubber::new(ScrubberConfig::default()).expect("scrubber");
+        let scrubber = Scrubber::new(ScrubberConfig::default(), false).expect("scrubber");
         let input = "David Harmon discussed the plan.";
         let (output, stats) = scrubber.scrub(input, &HashSet::new());
         assert!(output.contains(PERSON_TOKEN));
@@ -496,7 +870,7 @@ mod tests {
 
     #[test]
     fn redacts_extended_honorifics() {
-        let scrubber = Scrubber::new(ScrubberConfig::default()).expect("scrubber");
+        let scrubber = Scrubber::new(ScrubberConfig::default(), false).expect("scrubber");
         let input = "Rev. O'Connor provided counseling.";
         let (output, stats) = scrubber.scrub(input, &HashSet::new());
         assert!(output.contains(PERSON_TOKEN));
@@ -505,7 +879,7 @@ mod tests {
 
     #[test]
     fn redacts_coordinates() {
-        let scrubber = Scrubber::new(ScrubberConfig::default()).expect("scrubber");
+        let scrubber = Scrubber::new(ScrubberConfig::default(), false).expect("scrubber");
         let input = "Coordinates 41.8781° N, 87.6298° W were logged.";
         let (output, stats) = scrubber.scrub(input, &HashSet::new());
         assert!(output.contains(COORD_TOKEN));
@@ -514,7 +888,7 @@ mod tests {
 
     #[test]
     fn redacts_titles_and_addresses() {
-        let scrubber = Scrubber::new(ScrubberConfig::default()).expect("scrubber");
+        let scrubber = Scrubber::new(ScrubberConfig::default(), false).expect("scrubber");
         let input = "Dr. Harmon visited 128 Elmwood Drive.";
         let (output, stats) = scrubber.scrub(input, &HashSet::new());
         assert!(output.contains(PERSON_TOKEN));
@@ -524,8 +898,39 @@ mod tests {
     }
 
     #[test]
+    fn safe_harbor_redacts_insurance_and_license() {
+        let scrubber = Scrubber::new(ScrubberConfig::default(), true).expect("scrubber");
+        let input = "Policy Number 8392-77-551 and Driver's License #A123-4567.";
+        let (output, stats) = scrubber.scrub(input, &HashSet::new());
+        assert!(output.contains(INSURANCE_TOKEN));
+        assert!(output.contains(LICENSE_TOKEN));
+        assert!(stats.insurance_ids >= 1);
+        assert!(stats.licenses >= 1);
+    }
+
+    #[test]
+    fn safe_harbor_redacts_vehicle_and_device() {
+        let scrubber = Scrubber::new(ScrubberConfig::default(), true).expect("scrubber");
+        let input = "VIN 1HGCM82633A004352 and Device Serial S/N-4455-XYZ.";
+        let (output, stats) = scrubber.scrub(input, &HashSet::new());
+        assert!(output.contains(VEHICLE_TOKEN));
+        assert!(output.contains(DEVICE_TOKEN));
+        assert!(stats.vehicles >= 1);
+        assert!(stats.devices >= 1);
+    }
+
+    #[test]
+    fn safe_harbor_redacts_ip_addresses() {
+        let scrubber = Scrubber::new(ScrubberConfig::default(), true).expect("scrubber");
+        let input = "Client connected from 192.168.10.24 and 10.0.0.5.";
+        let (output, stats) = scrubber.scrub(input, &HashSet::new());
+        assert!(output.contains(IP_TOKEN));
+        assert!(stats.ip_addresses >= 2);
+    }
+
+    #[test]
     fn redacts_saint_facilities_with_curly_apostrophe() {
-        let scrubber = Scrubber::new(ScrubberConfig::default()).expect("scrubber");
+        let scrubber = Scrubber::new(ScrubberConfig::default(), false).expect("scrubber");
         let input = "Transferred from St. John\u{2019}s Medical Center.";
         let (output, stats) = scrubber.scrub(input, &HashSet::new());
         assert!(output.contains(FACILITY_TOKEN));
@@ -534,7 +939,7 @@ mod tests {
 
     #[test]
     fn relative_dates_detected() {
-        let scrubber = Scrubber::new(ScrubberConfig::default()).expect("scrubber");
+        let scrubber = Scrubber::new(ScrubberConfig::default(), false).expect("scrubber");
         let input = "Symptoms started 3 days ago and worsened yesterday.";
         let (output, stats) = scrubber.scrub(input, &HashSet::new());
         assert!(output.contains(REL_DATE_TOKEN));

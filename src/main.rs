@@ -43,6 +43,10 @@ struct Args {
     /// Emit redaction stats as JSON to stderr.
     #[arg(long)]
     stats_json: bool,
+
+    /// Enable additional HIPAA Safe Harbor redactions (IDs, licenses, IPs, etc.).
+    #[arg(long)]
+    safe_harbor: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, ValueEnum)]
@@ -58,6 +62,12 @@ enum Category {
     Facility,
     Address,
     Coordinate,
+    Url,
+    Insurance,
+    License,
+    Vehicle,
+    Device,
+    Ip,
 }
 
 fn main() -> Result<()> {
@@ -65,7 +75,7 @@ fn main() -> Result<()> {
     let skip: HashSet<Category> = args.skip.into_iter().collect();
 
     let config = load_config(args.config.as_ref())?;
-    let scrubber = Scrubber::new(config)?;
+    let scrubber = Scrubber::new(config, args.safe_harbor)?;
 
     let input = read_input(args.input.as_ref())?;
     let (scrubbed, stats) = scrubber.scrub(&input, &skip);
@@ -81,7 +91,8 @@ fn main() -> Result<()> {
 fn read_input(path: Option<&PathBuf>) -> Result<String> {
     match path {
         Some(p) if p == std::path::Path::new("-") => read_from_stdin(),
-        Some(p) => fs::read_to_string(p).with_context(|| format!("failed to read input file: {}", p.display())),
+        Some(p) => fs::read_to_string(p)
+            .with_context(|| format!("failed to read input file: {}", p.display())),
         None => read_from_stdin(),
     }
 }
@@ -165,6 +176,24 @@ fn report_stats(stats: &ScrubStats, as_json: bool) -> Result<()> {
         }
         if stats.coordinates > 0 {
             eprintln!("  coordinates  : {}", stats.coordinates);
+        }
+        if stats.urls > 0 {
+            eprintln!("  urls         : {}", stats.urls);
+        }
+        if stats.insurance_ids > 0 {
+            eprintln!("  insurance    : {}", stats.insurance_ids);
+        }
+        if stats.licenses > 0 {
+            eprintln!("  licenses     : {}", stats.licenses);
+        }
+        if stats.vehicles > 0 {
+            eprintln!("  vehicles     : {}", stats.vehicles);
+        }
+        if stats.devices > 0 {
+            eprintln!("  devices      : {}", stats.devices);
+        }
+        if stats.ip_addresses > 0 {
+            eprintln!("  ip addresses : {}", stats.ip_addresses);
         }
         if stats.relative_dates > 0 {
             eprintln!("  relative dates: {}", stats.relative_dates);
